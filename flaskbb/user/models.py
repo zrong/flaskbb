@@ -21,6 +21,8 @@ from flaskbb.utils.database import CRUDMixin, UTCDateTime
 from flaskbb.forum.models import (Post, Topic, topictracker, TopicsRead,
                                   ForumsRead)
 from flaskbb.message.models import Conversation
+from flask import current_app
+import ldap3
 
 
 groups_users = db.Table(
@@ -214,12 +216,81 @@ class User(db.Model, UserMixin, CRUDMixin):
                           descriptor=property(_get_password,
                                               _set_password))
 
+    @classmethod
     def check_password(self, password):
         """Check passwords. If passwords match it returns true, else false."""
 
         if self.password is None:
             return False
         return check_password_hash(self.password, password)
+
+# zrong start 2016-11-16 
+    @classmethod
+    def authenticate_ldap(cls, login, password):
+        """Check baina's username and password in LDAP server
+        """
+        host = current_app.config.get('LDAP_SERVER', None)
+        port = current_app.config.get('LDAP_PORT', None)
+        user_fmt = current_app.config.get('LDAP_USER_FMT', None)
+        email_suffix = current_app.config.get('LDAP_EMAIL_SUFFIX', None)
+
+        if not host:
+            raise AuthenticationError(_('Please set LDAP_SERVER first!'))
+        if not user_fmt:
+            raise AuthenticationError(_('Please set LDAP_USER_FMT first!'))
+        if not email_suffix:
+            raise AuthenticationError(_('Please set LDAP_EMAIL_SUFFIX first!'))
+
+        email_check = login.split('@')
+        login = email_check[0]
+        if len(email_check) > 1 and '@'+email_check[1] != email_suffix:
+            raise AuthenticationError('E-mail host must be %s'%email_suffix)
+
+        server = ldap3.Server(host, port, get_info=ldap3.ALL)
+        conn = None
+        auto_bind = True
+        succ = False
+        ldap_user = user_fmt%login
+        try:
+            conn = ldap3.Connection(server, user=ldap_user, password=password, auto_bind=auto_bind, authentication=ldap3.NTLM)
+            succ = True
+            msg = conn.result
+        except Exception as e:
+            succ = False
+            msg = str(e)
+            raise AuthenticationError(msg)
+        finally:
+            if conn:
+                conn.unbind()
+
+        user = cls.query.filter_by(username=login).first()
+        if user is not None:
+            # user exists
+            if succ:
+                # reset them after a successful login attempt
+                user.login_attempts = 0
+                user.save()
+            else:
+                # user exists, wrong password
+                # never had a bad login before
+                if user.login_attempts is None:
+                    user.login_attempts = 1
+                else:
+                    user.login_attempts += 1
+                user.last_failed_login = time_utcnow()
+                user.save()
+        elif succ:
+            # user is not exists, authentication is succesful, create it
+            user = User(username=login,
+                        email=login+email_suffix,
+                        password='password',
+                        date_joined=time_utcnow(),
+                        primary_group_id=4,
+                        language='zh',
+                        activated=True)
+            user.save()
+        return user
+# zrong end 2016-11-16 
 
     @classmethod
     def authenticate(cls, login, password):

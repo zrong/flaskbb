@@ -9,7 +9,7 @@
     :copyright: (c) 2014 by the FlaskBB Team.
     :license: BSD, see LICENSE for more details.
 """
-from flask import Blueprint, flash, request
+from flask import Blueprint, flash, request, abort
 from flask_login import login_required, current_user
 from flask_themes2 import get_themes_list
 from flask_babelplus import gettext as _
@@ -74,6 +74,9 @@ def settings():
 @user.route("/settings/password", methods=["POST", "GET"])
 @login_required
 def change_password():
+    # zrong start 2016-11-16 No permission to modify password when login by LDAP
+    abort(403)
+    # zrong end 2016-11-16
     form = ChangePasswordForm()
     if form.validate_on_submit():
         current_user.password = form.new_password.data
@@ -86,6 +89,9 @@ def change_password():
 @user.route("/settings/email", methods=["POST", "GET"])
 @login_required
 def change_email():
+    # zrong start 2016-11-16 No permission to modify email when login by LDAP
+    abort(403)
+    # zrong end 2016-11-16
     form = ChangeEmailForm(current_user)
     if form.validate_on_submit():
         current_user.email = form.new_email.data

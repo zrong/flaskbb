@@ -71,9 +71,37 @@ def login_rate_limit_message():
 # Activate rate limiting on the whole blueprint
 limiter.limit(login_rate_limit, error_message=login_rate_limit_message)(auth)
 
-
+# zrong start 2016-11-16 
 @auth.route("/login", methods=["GET", "POST"])
 def login():
+    if current_user is not None and current_user.is_authenticated:
+        return redirect_or_next(url_for("forum.index"))
+
+    current_limit = getattr(g, 'view_rate_limit', None)
+    login_recaptcha = False
+    if current_limit is not None:
+        window_stats = limiter.limiter.get_window_stats(*current_limit)
+        stats_diff = flaskbb_config["AUTH_REQUESTS"] - window_stats[1]
+        login_recaptcha = stats_diff >= flaskbb_config["LOGIN_RECAPTCHA"]
+
+    form = LoginForm(request.form)
+    if form.validate_on_submit():
+        try:
+            user = User.authenticate_ldap(form.login.data, form.password.data)
+            if not login_user(user, remember=form.remember_me.data):
+                flash(_("In order to use your account you have to activate it "
+                        "through the link we have sent to your email "
+                        "address."), "danger")
+            return redirect_or_next(url_for("forum.index"))
+        except AuthenticationError as e:
+            flash(_("Login is failed.")+" More infomation: %s."%e.description, "danger")
+
+    return render_template("auth/login.html", form=form,
+                           login_recaptcha=login_recaptcha)
+# zrong end 2016-11-16 
+
+# @auth.route("/login", methods=["GET", "POST"])
+def login_origin():
     """Logs the user in."""
     if current_user is not None and current_user.is_authenticated:
         return redirect_or_next(url_for("forum.index"))
