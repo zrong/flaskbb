@@ -169,3 +169,11 @@ class ProductionConfig(DefaultConfig):
     MESSAGE_URL_PREFIX = "/message"
     AUTH_URL_PREFIX = "/auth"
     ADMIN_URL_PREFIX = "/admin"
+
+    # FlaskBB Settings
+    # ------------------------------ #
+    # For LDAP authorize
+    LDAP_SERVER = 'ldapserver.example.org'
+    LDAP_PORT = None
+    LDAP_USER_FMT = 'Yourcompany\\%s'
+    LDAP_EMAIL_SUFFIX = '@example.org'

@@ -11,7 +11,7 @@
 """
 from datetime import datetime
 
-from flask import Blueprint, flash, redirect, url_for, request, g
+from flask import Blueprint, flash, redirect, url_for, request, g, abort
 from flask_login import (current_user, login_user, login_required,
                          logout_user, confirm_login, login_fresh)
 from flask_babelplus import gettext as _
@@ -199,6 +199,9 @@ def register():
 @auth.route('/reset-password', methods=["GET", "POST"])
 def forgot_password():
     """Sends a reset password token to the user."""
+    # zrong start 2016-11-16 No permission to reset password when login by LDAP
+    abort(403)
+    # zrong end 2016-11-16
     if not current_user.is_anonymous:
         return redirect(url_for("forum.index"))
 
@@ -219,6 +222,9 @@ def forgot_password():
 @auth.route("/reset-password/<token>", methods=["GET", "POST"])
 def reset_password(token):
     """Handles the reset password process."""
+    # zrong start 2016-11-16 No permission to reset password when login by LDAP
+    abort(403)
+    # zrong end 2016-11-16
     if not current_user.is_anonymous:
         return redirect(url_for("forum.index"))
 
