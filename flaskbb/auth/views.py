@@ -128,11 +128,29 @@ def login_origin():
     return render_template("auth/login.html", form=form,
                            login_recaptcha=login_recaptcha)
 
-
+# zrong start 2016-11-17
 @auth.route("/reauth", methods=["GET", "POST"])
 @limiter.exempt
 @login_required
 def reauth():
+    """Reauthenticates a user."""
+    if not login_fresh():
+        form = ReauthForm(request.form)
+        if form.validate_on_submit():
+            if current_user.check_password_ldap(form.password.data):
+                confirm_login()
+                flash(_("Reauthenticated."), "success")
+                return redirect_or_next(current_user.url)
+
+            flash(_("Wrong password."), "danger")
+        return render_template("auth/reauth.html", form=form)
+    return redirect(request.args.get("next") or current_user.url)
+# zrong end 2016-11-17
+
+# @auth.route("/reauth", methods=["GET", "POST"])
+# @limiter.exempt
+# @login_required
+def reauth_origin():
     """Reauthenticates a user."""
     if not login_fresh():
         form = ReauthForm(request.form)

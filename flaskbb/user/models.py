@@ -215,6 +215,41 @@ class User(db.Model, UserMixin, CRUDMixin):
     password = db.synonym('_password',
                           descriptor=property(_get_password,
                                               _set_password))
+# zrong start 2016-11-17
+    @staticmethod
+    def _check_login_password(login, password):
+        """Check username and password in LDAP server
+        """
+        host = current_app.config.get('LDAP_SERVER', None)
+        port = current_app.config.get('LDAP_PORT', None)
+        user_fmt = current_app.config.get('LDAP_USER_FMT', None)
+
+        if not host:
+            raise AuthenticationError(_('Please set LDAP_SERVER first!'))
+        if not user_fmt:
+            raise AuthenticationError(_('Please set LDAP_USER_FMT first!'))
+
+        server = ldap3.Server(host, port, get_info=ldap3.ALL)
+        conn = None
+        succ = False
+        ldap_user = user_fmt%login
+        try:
+            conn = ldap3.Connection(server, user=ldap_user, password=password, auto_bind=True, authentication=ldap3.NTLM)
+            succ = True
+            msg = conn.result
+        except Exception as e:
+            succ = False
+            msg = str(e)
+            raise AuthenticationError(msg)
+        finally:
+            if conn:
+                conn.unbind()
+        return succ
+
+    def check_password_ldap(self, password):
+        """Check passwords. Use LDAP server to check."""
+        return User._check_login_password(self.username, password)
+# zrong end 2016-11-17
 
     @classmethod
     def check_password(self, password):
@@ -227,41 +262,20 @@ class User(db.Model, UserMixin, CRUDMixin):
 # zrong start 2016-11-16 
     @classmethod
     def authenticate_ldap(cls, login, password):
-        """Check baina's username and password in LDAP server
+        """Login to LDAP server
         """
-        host = current_app.config.get('LDAP_SERVER', None)
-        port = current_app.config.get('LDAP_PORT', None)
-        user_fmt = current_app.config.get('LDAP_USER_FMT', None)
         email_suffix = current_app.config.get('LDAP_EMAIL_SUFFIX', None)
-
-        if not host:
-            raise AuthenticationError(_('Please set LDAP_SERVER first!'))
-        if not user_fmt:
-            raise AuthenticationError(_('Please set LDAP_USER_FMT first!'))
         if not email_suffix:
             raise AuthenticationError(_('Please set LDAP_EMAIL_SUFFIX first!'))
-
         email_check = login.split('@')
         login = email_check[0]
         if len(email_check) > 1 and '@'+email_check[1] != email_suffix:
             raise AuthenticationError('E-mail host must be %s'%email_suffix)
 
-        server = ldap3.Server(host, port, get_info=ldap3.ALL)
-        conn = None
-        auto_bind = True
-        succ = False
-        ldap_user = user_fmt%login
         try:
-            conn = ldap3.Connection(server, user=ldap_user, password=password, auto_bind=auto_bind, authentication=ldap3.NTLM)
-            succ = True
-            msg = conn.result
-        except Exception as e:
-            succ = False
-            msg = str(e)
-            raise AuthenticationError(msg)
-        finally:
-            if conn:
-                conn.unbind()
+            succ = User._check_login_password(login, password)
+        except AuthenticationError:
+            raise
 
         user = cls.query.filter_by(username=login).first()
         if user is not None:

@@ -170,7 +170,7 @@ class ProductionConfig(DefaultConfig):
     AUTH_URL_PREFIX = "/auth"
     ADMIN_URL_PREFIX = "/admin"
 
-    # FlaskBB Settings
+    # LDAP Settings
     # ------------------------------ #
     # For LDAP authorize
     LDAP_SERVER = 'ldapserver.example.org'
